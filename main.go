@@ -2,7 +2,9 @@ package main
 
 import (
 	"autharization/db"
-	_"autharization/entities"
+	_ "autharization/entities"
+	"fmt"
+
 	// "fmt"
 	"log"
 	"os"
@@ -19,6 +21,7 @@ var DbPassword string // mongodb password
 var DBpath string // if exsit can be used for connection
 
 func main() {
+	fmt.Println("Programm start")
 	godotenv.Load("env/environment.env")
 	Key = os.Getenv("KEY")
 	if len(Key) == 0 {
