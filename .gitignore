@@ -1,4 +1,1 @@
-env/*.env
-*.env
-./.vscode/*.json
-*.json
+env/
