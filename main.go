@@ -1,63 +1,41 @@
 package main
 
 import (
-	// "autharization/db"
-	"fmt"
+	"autharization/db"
+	_"autharization/entities"
+	// "fmt"
 	"log"
 	"os"
-	"reflect"
-	"time"
 
-	"github.com/golang-jwt/jwt"
 	"github.com/joho/godotenv"
+	_ "go.mongodb.org/mongo-driver/mongo"
+	_ "go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type MyClaims struct{
-	Subject   string `json:"sub,omitempty"`
-	ExpiresAt int64  `json:"exp,omitempty"`
-}
-
-func (c MyClaims)Valid() error {
-	return nil
-}
-
 // Cannot be zero lenth
-var Key string
+var Key string // EncryptingKey
+var DbName string // mongodb name
+var DbPassword string // mongodb password
+var DBpath string // if exsit can be used for connection
 
 func main() {
 	godotenv.Load("env/environment.env")
 	Key = os.Getenv("KEY")
 	if len(Key) == 0 {
-		log.Fatal("empty key value")
+		log.Fatal("empty env value")
 	}	
-
-	var token = jwt.NewWithClaims(jwt.SigningMethodHS512, MyClaims{
-		ExpiresAt: time.Now().Add(time.Minute * 2).Unix(),
-		Subject: "4517",
-	})
-	var text, e = token.SignedString([]byte("11"))
-	if e != nil {
-		log.Fatal(e)
-	}
 	
-	fmt.Println(token.Header)
-	fmt.Println(token.Claims)
-	fmt.Println(token.Signature)
-	fmt.Println(text)
-
-	var parsedToken, err = jwt.ParseWithClaims(text, &MyClaims{}, func(t *jwt.Token) (interface{}, error) {
-		return []byte("11"), nil
-	})
-
-	if err != nil {
-		log.Fatal(err)
+	if str, ok := os.LookupEnv("DB_FULL_PASS"); ok {
+		DBpath = str
 	}
-	if v, ok := parsedToken.Claims.(*MyClaims); ok {
-		fmt.Println(v.Subject)
-	}else {
-		fmt.Println(reflect.TypeOf(parsedToken.Claims))
-		
+	var manager = db.NewManager()
+	er := manager.Connect(DBpath)
+	if er != nil {
+		log.Fatal(er)
 	}
+	defer manager.Disconect()
+	// manager.Insert(entities.User{Name: "serega"})
+	manager.Pick()
 
 	// http.HandleFunc("/getnewtokens", func(w http.ResponseWriter, r *http.Request) {
 	// 	fmt.Printf("got new tokens request\n")

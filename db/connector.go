@@ -3,51 +3,101 @@ package db
 import (
 	"autharization/entities"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const connectParams = "mongodb://yan:good@localhost:27015"
+type DBmanager interface {
+	Connect(string)
+	Insert(entities.User)
+	Pick() (entities.User)
+	Disconect()
+}
 
-func Connect() {
+type Manager struct {
+	Client *mongo.Client
+	collection mongo.Collection
+}
 
-	var client, err = mongo.NewClient(options.Client().ApplyURI(connectParams))
-	if err != nil {
-		log.Fatal(err)
+func (m *Manager)Connect(path string) (error) {
+	if m.Client != nil {
+		return errors.New("exsisted connection")
 	}
 
-	// Create connect
-	err = client.Connect(context.TODO())
+	var client, err = mongo.NewClient(options.Client().ApplyURI(path))
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+	m.Client = client
+
+	// Create connect
+	err = m.Client.Connect(context.TODO())
+	if err != nil {
+		return err
 	}
 
 	// Check the connection
-	err = client.Ping(context.TODO(), nil)
+	err = m.Client.Ping(context.TODO(), nil)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	fmt.Println("Connected to MongoDB!")
+	log.Println("Connected to DB")
+	return nil
+}
 
-	var user =  entities.User{Name: "Sanya", GUID: "1886"}
+func (m *Manager)Insert(user entities.User) (error) {
+	var ins, err = m.Client.Database("users").Collection("user").InsertOne(context.TODO(), user)
+	if err != nil {
+		return err
+	}
+ 	log.Println("Inserted with: ", ins.InsertedID)
+	return nil
+}
 
-	collection := client.Database("Authentication").Collection("users")
-	var cur, er = collection.Find(context.TODO(), "")
-	if er != nil {
-		log.Fatal(er)
-	}
-	var users = make([]entities.User, 0)
-	err = cur.All(context.TODO(), users)
+func (m *Manager)All() (*[]entities.User, error) {
+	var ans = new([]entities.User)
+	var collection = m.Client.Database("users").Collection("user")
+	var cur, err = collection.Find(context.TODO(), bson.D{})
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	insertResult, err := collection.InsertOne(context.TODO(), user)
+	err = cur.All(context.TODO(), ans)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	fmt.Println("Inserted a single document: ", insertResult.InsertedID)
-	client.Disconnect(context.TODO())
+	return ans, nil
+}
+
+func (m *Manager)Pick() (*entities.User, error) {
+	var collection = m.Client.Database("users").Collection("user")
+	var res bson.A
+	var err = collection.FindOne(context.TODO(), bson.D{{"name", "serega"}}).Decode(&res)
+	if err == mongo.ErrNoDocuments {
+		fmt.Printf("No document was found with the title %s\n", "serega")
+		return nil, nil
+	}
+	if err != nil {
+		panic(err)
+	}
+	jsonData, err := json.MarshalIndent(res, "", "    ")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%s\n", jsonData)
+	 
+	return nil, nil
+}
+
+func (m *Manager)Disconect() {
+	m.Client.Disconnect(context.TODO())
+}
+
+func NewManager() (*Manager) {
+	return &Manager{}
 }
