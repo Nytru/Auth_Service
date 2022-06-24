@@ -1,17 +1,14 @@
 package main
 
 import (
-	// "autharization/db"
 	"autharization/entities"
 	"autharization/tokens"
-	"errors"
+	"strings"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"time"
 
-	_"github.com/golang-jwt/jwt"
 	"github.com/joho/godotenv"
 )
 
@@ -41,7 +38,6 @@ func init() {
 
 func HandleFuncNew(w http.ResponseWriter, r *http.Request) {
 	var user entities.User
-	// var ans string
 	for key, que := range r.URL.Query() {
 		switch key {
 		case "name":
@@ -62,70 +58,68 @@ func HandleFuncNew(w http.ResponseWriter, r *http.Request) {
 	if e := tok.Accsess(); e != nil {
 		w.WriteHeader(404)
 	}
+
 	var access, refresh = tok.GetValues()
-	w.Header().Add("accsess", access)
-	w.Header().Add("refresh", refresh)
+	cookie := http.Cookie{
+		Name: "accsess",
+		Value: access,
+	}
 
+	http.SetCookie(w, &cookie)
+	cookie = http.Cookie{
+		Name: "refresh",
+		Value: refresh,
+	}
+	http.SetCookie(w, &cookie)
 
-	logger.Println("succses request, method: ", r.Method)
+	logger.Println("new tokens: \naccess: ", access, "\nrefresh: ", refresh)
+	logger.Println("succses new request, method: ", r.Method)
 	
 }
 
 func HandleFuncRefresh(w http.ResponseWriter, r *http.Request) {
-	var user entities.User
-	for key, que := range r.URL.Query() {
-		switch key {
-		case "name":
-			user.Value = que[0]
-		case "guid":
-			user.GUID = que[0]
-		default:
-			w.WriteHeader(http.StatusForbidden)
-			logger.Println("invalid querry request")
-			return
+	var access, refresh string
+	var header = r.Header
+	for k, v := range header {
+		if k == "Cookie" {
+			var arr = strings.Split(v[0], ";")
+			access = strings.Split(arr[0], "=")[1]
+			refresh = strings.Split(arr[1], "=")[1]
+			logger.Println(access, "\t", refresh)
 		}
 	}
-	
-	logger.Println("succses request, method: ", r.Method)
-}
 
-type MyClaims struct {
-	Value     string `json:"val,omitempty"`
-	GUID      string `json:"guid"`
-	ExpiresAt int64  `json:"exp"`
-}
-
-func (c MyClaims) Valid() error {
-	if c.ExpiresAt >= time.Now().Unix() {
-		return nil
-	} else {
-		return errors.New("token expired")
+	if access == "" || refresh == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
 	}
+	var manager = tokens.NewTokenManagerWithTokens(Key, access, refresh, logger)
+	var err = manager.Refresh()
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(err.Error()))
+		logger.Println(err)
+		return
+	}
+
+	access, refresh = manager.GetValues()
+	cookie := http.Cookie{
+		Name: "accsess",
+		Value: access,
+	}
+
+	http.SetCookie(w, &cookie)
+	cookie = http.Cookie{
+		Name: "refresh",
+		Value: refresh,
+	}
+	http.SetCookie(w, &cookie)
+
+	logger.Println("new tokens: \naccess: ", access, "\nrefresh: ", refresh)
+	logger.Println("succses refresh request, method: ", r.Method)
 }
 
 func main() {
-	// var tok = jwt.NewWithClaims(jwt.SigningMethodHS512, MyClaims{Value: "q", GUID: "12", ExpiresAt: time.Now().Add(time.Minute).Unix()})
-	// var token, er = tok.SignedString([]byte("12"))
-	// if er != nil {
-	// 	panic(er)
-	// }
-
-	// parsed, err := jwt.ParseWithClaims(token, &MyClaims{}, func(t *jwt.Token) (interface{}, error) {return []byte("12"), nil})
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// if mc, ok := parsed.Claims.(*MyClaims); ok {
-	// 	fmt.Println(mc.Value, "\n", mc.GUID)
-	// } else {
-	// 	fmt.Println("lox")
-	// }
-	var tok1 = tokens.NewTokenManagerWithGUID("45", "value", "43etrgdgfv", logger)
-	tok1.Accsess()
-	var a, b = tok1.GetValues()
-	var tok2 = tokens.NewTokenManagerWithTokens("45", a, b, logger)
-	tok2.Refresh()
-	return
-
 	http.HandleFunc("/getnewtokens", HandleFuncNew)
 	http.HandleFunc("/refreshtoken", HandleFuncRefresh)
 	logger.Println("Server started")

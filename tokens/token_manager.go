@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var accsess_duration = time.Second * 2
+var accsess_duration = time.Minute * 2
 var refresh_duration = time.Minute * 7
 
 type MyClaims struct {
