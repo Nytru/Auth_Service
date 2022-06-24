@@ -3,30 +3,36 @@ package db
 import (
 	"autharization/entities"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
+	"os"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+const Database_Name = "users"
+const Collection_Name = "user"
+
 type DBmanager interface {
-	Connect(string)
-	Insert(entities.User)
-	Pick() (entities.User)
+	Connect() (error)
+	Insert(entities.User) (error)
+	CheckToken(guid string) (token entities.RefreshToken, er error)
+	UpdateToken(newToken entities.RefreshToken, guid string) (error)
+	Replace(user entities.User) (error)
 	Disconect()
 }
 
-type Manager struct {
-	Client *mongo.Client
-	collection mongo.Collection
+type manager struct {
+	client *mongo.Client
+	logger *log.Logger
+	path string
 }
 
-func (m *Manager)Connect(path string) (error) {
-	if m.Client != nil {
+func (m *manager)Connect() (error) {
+	var path = m.path
+	if m.client != nil {
 		return errors.New("exsisted connection")
 	}
 
@@ -34,70 +40,104 @@ func (m *Manager)Connect(path string) (error) {
 	if err != nil {
 		return err
 	}
-	m.Client = client
+	m.client = client
 
 	// Create connect
-	err = m.Client.Connect(context.TODO())
+	err = m.client.Connect(context.TODO())
 	if err != nil {
 		return err
 	}
 
 	// Check the connection
-	err = m.Client.Ping(context.TODO(), nil)
+	err = m.client.Ping(context.TODO(), nil)
 	if err != nil {
 		return err
 	}
-	log.Println("Connected to DB")
+	if m.logger != nil {
+		m.logger.Println("Connected to db")
+	}
 	return nil
 }
 
-func (m *Manager)Insert(user entities.User) (error) {
-	var ins, err = m.Client.Database("users").Collection("user").InsertOne(context.TODO(), user)
+func (m *manager)Insert(user entities.User) (error) {
+	if m.client == nil {
+		return errors.New("unconected error")
+	}
+
+	var ins, err = m.client.Database(Database_Name).Collection(Collection_Name).InsertOne(context.TODO(), user)
 	if err != nil {
 		return err
 	}
- 	log.Println("Inserted with: ", ins.InsertedID)
+	if m.logger != nil {
+		m.logger.Println("Inserted with id: ", ins.InsertedID)
+	}
 	return nil
 }
 
-func (m *Manager)All() (*[]entities.User, error) {
-	var ans = new([]entities.User)
-	var collection = m.Client.Database("users").Collection("user")
-	var cur, err = collection.Find(context.TODO(), bson.D{})
-	if err != nil {
-		return nil, err
+func (m *manager)CheckToken(guid string) (token entities.RefreshToken, er error) {
+	if m.client == nil {
+		return entities.RefreshToken{}, errors.New("unconected error")
 	}
-	err = cur.All(context.TODO(), ans)
-	if err != nil {
-		return nil, err
+
+	var collection = m.client.Database(Database_Name).Collection(Collection_Name)
+	var res = new(entities.User)
+	var result = collection.FindOne(context.TODO(), bson.D{{"guid", guid}})
+	if er = result.Err(); er != nil {
+		return entities.RefreshToken{}, er
 	}
-	return ans, nil
+	e := result.Decode(res)
+	if e != nil {
+		return entities.RefreshToken{}, e
+	}
+	return res.Refreshtoken, nil
 }
 
-func (m *Manager)Pick() (*entities.User, error) {
-	var collection = m.Client.Database("users").Collection("user")
-	var res bson.A
-	var err = collection.FindOne(context.TODO(), bson.D{{"name", "serega"}}).Decode(&res)
-	if err == mongo.ErrNoDocuments {
-		fmt.Printf("No document was found with the title %s\n", "serega")
-		return nil, nil
+func (m *manager)UpdateToken(newToken entities.RefreshToken, guid string) (error) {
+	if m.client == nil {
+		return errors.New("unconected error")
 	}
-	if err != nil {
-		panic(err)
+	var user = entities.User{Refreshtoken: newToken}
+	var collection = m.client.Database(Database_Name).Collection(Collection_Name)
+	var res = collection.FindOneAndUpdate(context.TODO(), bson.D{{"guid", guid}}, user)
+	if res.Err() != nil {
+		return res.Err()
 	}
-	jsonData, err := json.MarshalIndent(res, "", "    ")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("%s\n", jsonData)
-	 
-	return nil, nil
+	return nil
 }
 
-func (m *Manager)Disconect() {
-	m.Client.Disconnect(context.TODO())
+func (m *manager)Replace(user entities.User) (error) {
+	if m.client == nil {
+		return errors.New("unconected error")
+	}
+
+	if _, er := m.CheckToken(user.GUID); er == nil {
+		var collection = m.client.Database(Database_Name).Collection(Collection_Name)
+		var _, er = collection.DeleteOne(context.TODO(), bson.D{{"guid", user.GUID}})
+		if er != nil {
+			return er
+		}
+	}
+
+	var er = m.Insert(user)
+	if er != nil {
+		return er
+	}
+	return nil
 }
 
-func NewManager() (*Manager) {
-	return &Manager{}
+
+func (m *manager)Disconect() {
+	m.client.Disconnect(context.TODO())
+}
+
+func NewManager(log *log.Logger) (*manager) {
+	var path = os.Getenv("DB_FULL_PASS")
+	var manager = new(manager)
+	if log != nil {
+		manager.logger = log	
+	} else {
+		manager.logger = nil
+	}
+	manager.path = path
+	return manager
 }
