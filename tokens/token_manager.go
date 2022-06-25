@@ -14,13 +14,13 @@ import (
 var accsess_duration = time.Minute * 2
 var refresh_duration = time.Minute * 7
 
-type MyClaims struct {
+type LiteClaims struct {
 	Value     string `json:"val,omitempty"`
 	GUID      string `json:"guid"`
 	ExpiresAt int64  `json:"exp"`
 }
 
-func (c MyClaims) Valid() error {
+func (c LiteClaims) Valid() error {
 	if c.ExpiresAt >= time.Now().Unix() {
 		return nil
 	} else {
@@ -28,19 +28,19 @@ func (c MyClaims) Valid() error {
 	}
 }
 
-type Manager interface {
+type TokensRepository interface {
 	Refresh() error
 	Accsess() error
 	GetValues() (string, string)
-	Parse() (*MyClaims, error)
+	Parse() (*LiteClaims, error)
 }
 
 type tokenManager struct {
 	key           string
 	user          entities.User
 	accsess_token string
-	log           *log.Logger
-	dbmanager     db.Manager
+	log			  *log.Logger
+	dbmanager     db.DBRepository
 }
 
 func NewTokenManagerWithTokens(key, accsess, refresh string, log *log.Logger) *tokenManager {
@@ -83,7 +83,7 @@ func NewTokenManagerWithGUID(key, value, guid string, log *log.Logger) *tokenMan
 }
 
 func (m *tokenManager) newAccses() (err error) {
-	var token = jwt.NewWithClaims(jwt.SigningMethodHS512, MyClaims{
+	var token = jwt.NewWithClaims(jwt.SigningMethodHS512, LiteClaims{
 		Value:     m.user.Value,
 		ExpiresAt: time.Now().Add(accsess_duration).Unix(),
 		GUID:      m.user.GUID,
@@ -118,7 +118,7 @@ func (m *tokenManager) getNewPair() (err error) {
 
 func (m *tokenManager) Refresh() (err error) {
 	m.dbmanager.Connect()
-	defer m.dbmanager.Disconect()
+	defer m.dbmanager.Disconnect()
 
 	var claim, er = m.Parse()
 	if er != nil && er.Error() != "token expired" {
@@ -150,7 +150,7 @@ func (m *tokenManager) Refresh() (err error) {
 
 func (m *tokenManager) Accsess() (err error) {
 	m.dbmanager.Connect()
-	defer m.dbmanager.Disconect()
+	defer m.dbmanager.Disconnect()
 
 	err = m.getNewPair()
 	if err != nil {
@@ -164,20 +164,20 @@ func (m *tokenManager) GetValues() (string, string) {
 	return m.accsess_token, m.user.Refreshtoken.Token
 }
 
-func (m *tokenManager) Parse() (*MyClaims, error) {
-	var token, err = jwt.ParseWithClaims(m.accsess_token, &MyClaims{}, func(t *jwt.Token) (interface{}, error) {
+func (m *tokenManager) Parse() (*LiteClaims, error) {
+	var token, err = jwt.ParseWithClaims(m.accsess_token, &LiteClaims{}, func(t *jwt.Token) (interface{}, error) {
 		return []byte(m.key), nil
 	})
 
 	if err != nil {
-		if cl, ok := token.Claims.(*MyClaims); ok {
+		if cl, ok := token.Claims.(*LiteClaims); ok {
 			return cl, err
 		} else {
 			return nil, errors.New("claims type error")
 		}
 	}
 
-	if cl, ok := token.Claims.(*MyClaims); ok {
+	if cl, ok := token.Claims.(*LiteClaims); ok {
 		return cl, nil
 	}
 	return nil, errors.New("claims type error")

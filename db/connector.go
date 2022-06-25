@@ -15,12 +15,12 @@ import (
 const Database_Name = "users"
 const Collection_Name = "user"
 
-type Manager interface {
+type DBRepository interface {
 	Connect() error
 	Insert(entities.User) error
 	CheckToken(guid string) (token entities.RefreshToken, er error)
 	Replace(user entities.User) error
-	Disconect()
+	Disconnect()
 }
 
 type dbmanager struct {
@@ -108,17 +108,17 @@ func (m *dbmanager) Replace(user entities.User) error {
 	return nil
 }
 
-func (m *dbmanager) Disconect() {
+func (m *dbmanager) Disconnect() {
 	m.client.Disconnect(context.TODO())
 }
 
 func NewManager(log *log.Logger) *dbmanager {
 	var path = os.Getenv("DB_FULL_PASS")
 	var manager = new(dbmanager)
-	if log != nil {
-		manager.logger = log
-	} else {
+	if log == nil {
 		manager.logger = nil
+	} else {
+		manager.logger = log
 	}
 	manager.path = path
 	return manager
