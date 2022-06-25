@@ -28,26 +28,26 @@ func (c LiteClaims) Valid() error {
 	}
 }
 
-type TokensRepository interface {
+type TokensProvider interface {
 	Refresh() error
 	Accsess() error
 	GetValues() (string, string)
 	Parse() (*LiteClaims, error)
 }
 
-type tokenManager struct {
+type tokensManager struct {
 	key           string
 	user          entities.User
 	accsess_token string
-	log			  *log.Logger
-	dbmanager     db.DBRepository
+	log           *log.Logger
+	dbmanager     db.DBAccessProvider
 }
 
-func NewTokenManagerWithTokens(key, accsess, refresh string, log *log.Logger) *tokenManager {
+func NewTokenManagerWithTokens(key, accsess, refresh string, log *log.Logger) *tokensManager {
 	if key == "" || accsess == "" || refresh == "" {
 		return nil
 	}
-	var mng = new(tokenManager)
+	var mng = new(tokensManager)
 	if log != nil {
 		mng.log = log
 		mng.dbmanager = db.NewManager(log)
@@ -62,12 +62,12 @@ func NewTokenManagerWithTokens(key, accsess, refresh string, log *log.Logger) *t
 	return mng
 }
 
-func NewTokenManagerWithGUID(key, value, guid string, log *log.Logger) *tokenManager {
+func NewTokenManagerWithGUID(key, value, guid string, log *log.Logger) *tokensManager {
 	if key == "" || value == "" || guid == "" {
 		return nil
 	}
 
-	var manager = new(tokenManager)
+	var manager = new(tokensManager)
 	manager.key = key
 	manager.user = entities.User{GUID: guid, Value: value}
 
@@ -82,7 +82,7 @@ func NewTokenManagerWithGUID(key, value, guid string, log *log.Logger) *tokenMan
 	return manager
 }
 
-func (m *tokenManager) newAccses() (err error) {
+func (m *tokensManager) newAccses() (err error) {
 	var token = jwt.NewWithClaims(jwt.SigningMethodHS512, LiteClaims{
 		Value:     m.user.Value,
 		ExpiresAt: time.Now().Add(accsess_duration).Unix(),
@@ -92,7 +92,7 @@ func (m *tokenManager) newAccses() (err error) {
 	return err
 }
 
-func (m *tokenManager) newRefresh() (err error) {
+func (m *tokensManager) newRefresh() (err error) {
 	var token, er = bcrypt.GenerateFromPassword([]byte(m.accsess_token), bcrypt.DefaultCost)
 	if er != nil {
 		return er
@@ -102,7 +102,7 @@ func (m *tokenManager) newRefresh() (err error) {
 	return nil
 }
 
-func (m *tokenManager) getNewPair() (err error) {
+func (m *tokensManager) getNewPair() (err error) {
 	err = m.newAccses()
 	if err != nil {
 		return err
@@ -116,7 +116,7 @@ func (m *tokenManager) getNewPair() (err error) {
 	return nil
 }
 
-func (m *tokenManager) Refresh() (err error) {
+func (m *tokensManager) Refresh() (err error) {
 	m.dbmanager.Connect()
 	defer m.dbmanager.Disconnect()
 
@@ -148,7 +148,7 @@ func (m *tokenManager) Refresh() (err error) {
 	return err
 }
 
-func (m *tokenManager) Accsess() (err error) {
+func (m *tokensManager) Accsess() (err error) {
 	m.dbmanager.Connect()
 	defer m.dbmanager.Disconnect()
 
@@ -160,11 +160,11 @@ func (m *tokenManager) Accsess() (err error) {
 	return m.dbmanager.Replace(m.user)
 }
 
-func (m *tokenManager) GetValues() (string, string) {
+func (m *tokensManager) GetValues() (string, string) {
 	return m.accsess_token, m.user.Refreshtoken.Token
 }
 
-func (m *tokenManager) Parse() (*LiteClaims, error) {
+func (m *tokensManager) Parse() (*LiteClaims, error) {
 	var token, err = jwt.ParseWithClaims(m.accsess_token, &LiteClaims{}, func(t *jwt.Token) (interface{}, error) {
 		return []byte(m.key), nil
 	})

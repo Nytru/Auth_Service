@@ -15,7 +15,7 @@ import (
 const Database_Name = "users"
 const Collection_Name = "user"
 
-type DBRepository interface {
+type DBAccessProvider interface {
 	Connect() error
 	Insert(entities.User) error
 	CheckToken(guid string) (token entities.RefreshToken, er error)

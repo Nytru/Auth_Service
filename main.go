@@ -3,6 +3,7 @@ package main
 import (
 	"authentication/entities"
 	"authentication/tokens"
+	"encoding/base64"
 	"io"
 	"log"
 	"net/http"
@@ -65,7 +66,7 @@ func GetNewTokensHandler(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &cookie)
 	cookie = http.Cookie{
 		Name: "refresh",
-		Value: refresh,
+		Value: base64.URLEncoding.EncodeToString([]byte(refresh)),
 	}
 	http.SetCookie(w, &cookie)
 
@@ -81,7 +82,7 @@ func RefreshTokensHandler(w http.ResponseWriter, r *http.Request) {
 			var arr = strings.Split(v[0], ";")
 			access = strings.Split(arr[0], "=")[1]
 			refresh = strings.Split(arr[1], "=")[1]
-			logger.Println(access, "\t", refresh)
+			logger.Println("cookie from refresh request", access, "\t", refresh)
 		}
 	}
 
@@ -89,8 +90,16 @@ func RefreshTokensHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
+	var txt, err  = base64.URLEncoding.DecodeString(refresh)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		logger.Println(err)
+	}
+	refresh = string(txt)
+
 	var manager = tokens.NewTokenManagerWithTokens(os.Getenv("KEY"), access, refresh, logger)
-	var err = manager.Refresh()
+	err = manager.Refresh()
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(err.Error()))
@@ -107,7 +116,7 @@ func RefreshTokensHandler(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &cookie)
 	cookie = http.Cookie{
 		Name: "refresh",
-		Value: refresh,
+		Value: base64.URLEncoding.EncodeToString([]byte(refresh)),
 	}
 	http.SetCookie(w, &cookie)
 
