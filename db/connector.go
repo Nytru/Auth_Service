@@ -15,22 +15,21 @@ import (
 const Database_Name = "users"
 const Collection_Name = "user"
 
-type DBmanager interface {
-	Connect() (error)
-	Insert(entities.User) (error)
+type Manager interface {
+	Connect() error
+	Insert(entities.User) error
 	CheckToken(guid string) (token entities.RefreshToken, er error)
-	UpdateToken(newToken entities.RefreshToken, guid string) (error)
-	Replace(user entities.User) (error)
+	Replace(user entities.User) error
 	Disconect()
 }
 
-type manager struct {
+type dbmanager struct {
 	client *mongo.Client
 	logger *log.Logger
-	path string
+	path   string
 }
 
-func (m *manager)Connect() (error) {
+func (m *dbmanager) Connect() error {
 	var path = m.path
 	if m.client != nil {
 		return errors.New("exsisted connection")
@@ -59,7 +58,7 @@ func (m *manager)Connect() (error) {
 	return nil
 }
 
-func (m *manager)Insert(user entities.User) (error) {
+func (m *dbmanager) Insert(user entities.User) error {
 	if m.client == nil {
 		return errors.New("unconected error")
 	}
@@ -74,7 +73,7 @@ func (m *manager)Insert(user entities.User) (error) {
 	return nil
 }
 
-func (m *manager)CheckToken(guid string) (token entities.RefreshToken, er error) {
+func (m *dbmanager) CheckToken(guid string) (token entities.RefreshToken, er error) {
 	if m.client == nil {
 		return entities.RefreshToken{}, errors.New("unconected error")
 	}
@@ -92,49 +91,32 @@ func (m *manager)CheckToken(guid string) (token entities.RefreshToken, er error)
 	return res.Refreshtoken, nil
 }
 
-func (m *manager)UpdateToken(newToken entities.RefreshToken, guid string) (error) {
-	if m.client == nil {
-		return errors.New("unconected error")
-	}
-	var user = entities.User{Refreshtoken: newToken}
-	var collection = m.client.Database(Database_Name).Collection(Collection_Name)
-	var res = collection.FindOneAndUpdate(context.TODO(), bson.D{{"guid", guid}}, user)
-	if res.Err() != nil {
-		return res.Err()
-	}
-	return nil
-}
-
-func (m *manager)Replace(user entities.User) (error) {
+func (m *dbmanager) Replace(user entities.User) error {
 	if m.client == nil {
 		return errors.New("unconected error")
 	}
 
-	if _, er := m.CheckToken(user.GUID); er == nil {
-		var collection = m.client.Database(Database_Name).Collection(Collection_Name)
-		var _, er = collection.DeleteOne(context.TODO(), bson.D{{"guid", user.GUID}})
+	var collect = m.client.Database(Database_Name).Collection(Collection_Name)
+	var res, err = collect.ReplaceOne(context.TODO(), bson.D{{"guid", user.GUID}}, user)
+	if err != nil || res.MatchedCount > 12 {
+		var er = m.Insert(user)
 		if er != nil {
 			return er
 		}
 	}
 
-	var er = m.Insert(user)
-	if er != nil {
-		return er
-	}
 	return nil
 }
 
-
-func (m *manager)Disconect() {
+func (m *dbmanager) Disconect() {
 	m.client.Disconnect(context.TODO())
 }
 
-func NewManager(log *log.Logger) (*manager) {
+func NewManager(log *log.Logger) *dbmanager {
 	var path = os.Getenv("DB_FULL_PASS")
-	var manager = new(manager)
+	var manager = new(dbmanager)
 	if log != nil {
-		manager.logger = log	
+		manager.logger = log
 	} else {
 		manager.logger = nil
 	}

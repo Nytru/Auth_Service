@@ -3,11 +3,11 @@ package main
 import (
 	"autharization/entities"
 	"autharization/tokens"
-	"strings"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -27,7 +27,7 @@ func init() {
 	if Key, ok = os.LookupEnv("KEY"); !ok {
 		panic("Empty env err")
 	}
-	DBpath = os.Getenv("DB_FULL_PASS")
+	// DBpath = os.Getenv("DB_FULL_PASS")
 	var file, err = os.OpenFile("logs.txt", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
 	if err != nil {
 		panic(err)
@@ -38,13 +38,20 @@ func init() {
 
 func HandleFuncNew(w http.ResponseWriter, r *http.Request) {
 	var user entities.User
+	if len(r.URL.Query()) > 2 {
+		w.WriteHeader(http.StatusBadRequest)
+		io.WriteString(w, "invalid querry request")
+		logger.Println("invalid querry request")
+	}
+
 	for key, que := range r.URL.Query() {
 		switch key {
-		case "name":
+		case "value":
 			user.Value = que[0]
 		case "guid":
 			user.GUID = que[0]
 		default:
+			w.WriteHeader(http.StatusBadRequest)
 			io.WriteString(w, "invalid querry request")
 			logger.Println("invalid querry request")
 			return
@@ -74,7 +81,6 @@ func HandleFuncNew(w http.ResponseWriter, r *http.Request) {
 
 	logger.Println("new tokens: \naccess: ", access, "\nrefresh: ", refresh)
 	logger.Println("succses new request, method: ", r.Method)
-	
 }
 
 func HandleFuncRefresh(w http.ResponseWriter, r *http.Request) {
