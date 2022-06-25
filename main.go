@@ -1,8 +1,8 @@
 package main
 
 import (
-	"autharization/entities"
-	"autharization/tokens"
+	"authentication/entities"
+	"authentication/tokens"
 	"io"
 	"log"
 	"net/http"
@@ -12,22 +12,12 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Cannot be zero lenth
-var Key string // EncryptingKey
-var DbName string // mongodb name
-var DbPassword string // mongodb password
-var DBpath string // if exsit can be used for connection
-
 // Logger
 var logger *log.Logger
 
 func init() {
 	godotenv.Load("env/.env")
-	var ok bool	
-	if Key, ok = os.LookupEnv("KEY"); !ok {
-		panic("Empty env err")
-	}
-	// DBpath = os.Getenv("DB_FULL_PASS")
+
 	var file, err = os.OpenFile("logs.txt", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
 	if err != nil {
 		panic(err)
@@ -36,7 +26,7 @@ func init() {
 	logger = log.New(file, "Debug: ", log.Flags())
 }
 
-func HandleFuncNew(w http.ResponseWriter, r *http.Request) {
+func GetNewTokensHandler(w http.ResponseWriter, r *http.Request) {
 	var user entities.User
 	if len(r.URL.Query()) > 2 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -58,7 +48,7 @@ func HandleFuncNew(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	
-	var tok = tokens.NewTokenManagerWithGUID(Key, user.Value, user.GUID, logger)
+	var tok = tokens.NewTokenManagerWithGUID(os.Getenv("KEY"), user.Value, user.GUID, logger)
 	if tok == nil {
 		w.WriteHeader(http.StatusForbidden)
 	}
@@ -83,7 +73,7 @@ func HandleFuncNew(w http.ResponseWriter, r *http.Request) {
 	logger.Println("succses new request, method: ", r.Method)
 }
 
-func HandleFuncRefresh(w http.ResponseWriter, r *http.Request) {
+func RefreshTokensHandler(w http.ResponseWriter, r *http.Request) {
 	var access, refresh string
 	var header = r.Header
 	for k, v := range header {
@@ -99,7 +89,7 @@ func HandleFuncRefresh(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	var manager = tokens.NewTokenManagerWithTokens(Key, access, refresh, logger)
+	var manager = tokens.NewTokenManagerWithTokens(os.Getenv("KEY"), access, refresh, logger)
 	var err = manager.Refresh()
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -126,8 +116,8 @@ func HandleFuncRefresh(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/getnewtokens", HandleFuncNew)
-	http.HandleFunc("/refreshtoken", HandleFuncRefresh)
+	http.HandleFunc("/getnewtokens", GetNewTokensHandler)
+	http.HandleFunc("/refreshtoken", RefreshTokensHandler)
 	logger.Println("Server started")
 	http.ListenAndServe(":8080", nil)
 	logger.Println("Server stopped")

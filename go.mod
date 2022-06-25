@@ -1,4 +1,4 @@
-module autharization
+module authentication
 
 go 1.18
 

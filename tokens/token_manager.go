@@ -1,8 +1,8 @@
 package tokens
 
 import (
-	"autharization/db"
-	"autharization/entities"
+	"authentication/db"
+	"authentication/entities"
 	"errors"
 	"log"
 	"time"

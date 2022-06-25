@@ -1,7 +1,7 @@
 package db
 
 import (
-	"autharization/entities"
+	"authentication/entities"
 	"context"
 	"errors"
 	"log"
