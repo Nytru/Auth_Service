@@ -62,7 +62,7 @@ func NewTokenManagerWithTokens(key, accsess, refresh string, log *log.Logger) *t
 	return mng
 }
 
-func NewTokenManagerWithGUID(key, value, guid string, log *log.Logger) *tokensManager {
+func NewTokenProviderWithGUID(key, value, guid string, log *log.Logger) *tokensManager {
 	if key == "" || value == "" || guid == "" {
 		return nil
 	}

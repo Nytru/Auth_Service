@@ -19,7 +19,7 @@ var logger *log.Logger
 func init() {
 	godotenv.Load("env/.env")
 
-	var file, err = os.OpenFile("logs.txt", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	var file, err = os.OpenFile("logs.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
 		panic(err)
 	}
@@ -48,8 +48,8 @@ func GetNewTokensHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	
-	var tok = tokens.NewTokenManagerWithGUID(os.Getenv("KEY"), user.Value, user.GUID, logger)
+
+	var tok = tokens.NewTokenProviderWithGUID(os.Getenv("KEY"), user.Value, user.GUID, logger)
 	if tok == nil {
 		w.WriteHeader(http.StatusForbidden)
 	}
@@ -90,7 +90,7 @@ func RefreshTokensHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	var txt, err  = base64.URLEncoding.DecodeString(refresh)
+	var txt, err = base64.URLEncoding.DecodeString(refresh)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
@@ -109,13 +109,13 @@ func RefreshTokensHandler(w http.ResponseWriter, r *http.Request) {
 
 	access, refresh = manager.GetValues()
 	cookie := http.Cookie{
-		Name: "accsess",
+		Name:  "accsess",
 		Value: access,
 	}
 
 	http.SetCookie(w, &cookie)
 	cookie = http.Cookie{
-		Name: "refresh",
+		Name:  "refresh",
 		Value: base64.URLEncoding.EncodeToString([]byte(refresh)),
 	}
 	http.SetCookie(w, &cookie)
