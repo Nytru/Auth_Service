@@ -8,7 +8,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -57,16 +59,18 @@ func GetNewTokensHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
 	}
 
+	var duration, _ = strconv.Atoi(os.Getenv("REFRESH_DURATION"))
 	var access, refresh = tok.GetValues()
 	cookie := http.Cookie{
 		Name: "accsess",
 		Value: access,
+		Expires: time.Now().Add(time.Duration(duration)),
 	}
-
 	http.SetCookie(w, &cookie)
 	cookie = http.Cookie{
 		Name: "refresh",
 		Value: base64.URLEncoding.EncodeToString([]byte(refresh)),
+		Expires: time.Now().Add(time.Duration(duration)),
 	}
 	http.SetCookie(w, &cookie)
 
@@ -107,16 +111,18 @@ func RefreshTokensHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var duration, _ = strconv.Atoi(os.Getenv("REFRESH_DURATION"))
 	access, refresh = manager.GetValues()
 	cookie := http.Cookie{
 		Name:  "accsess",
 		Value: access,
+		Expires: time.Now().Add(time.Duration(duration)),
 	}
-
 	http.SetCookie(w, &cookie)
 	cookie = http.Cookie{
 		Name:  "refresh",
 		Value: base64.URLEncoding.EncodeToString([]byte(refresh)),
+		Expires: time.Now().Add(time.Duration(duration)),
 	}
 	http.SetCookie(w, &cookie)
 

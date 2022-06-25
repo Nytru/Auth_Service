@@ -5,14 +5,13 @@ import (
 	"authentication/entities"
 	"errors"
 	"log"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt"
 	"golang.org/x/crypto/bcrypt"
 )
-
-var accsess_duration = time.Minute * 2
-var refresh_duration = time.Minute * 7
 
 type LiteClaims struct {
 	Value     string `json:"val,omitempty"`
@@ -83,9 +82,11 @@ func NewTokenProviderWithGUID(key, value, guid string, log *log.Logger) *tokensM
 }
 
 func (m *tokensManager) newAccses() (err error) {
+	var accsess_duration, _ = strconv.Atoi(os.Getenv("ACCESS_DURATION")) 
+
 	var token = jwt.NewWithClaims(jwt.SigningMethodHS512, LiteClaims{
 		Value:     m.user.Value,
-		ExpiresAt: time.Now().Add(accsess_duration).Unix(),
+		ExpiresAt: time.Now().Add(time.Duration(accsess_duration)).Unix(),
 		GUID:      m.user.GUID,
 	})
 	m.accsess_token, err = token.SignedString([]byte(m.key))
@@ -98,7 +99,8 @@ func (m *tokensManager) newRefresh() (err error) {
 		return er
 	}
 	m.user.Refreshtoken.Token = string(token)
-	m.user.Refreshtoken.ExpiresAt = time.Now().Add(refresh_duration).Unix()
+	var refresh_duration, _ = strconv.Atoi(os.Getenv("REFRESH_DURATION"))
+	m.user.Refreshtoken.ExpiresAt = time.Now().Add(time.Duration(refresh_duration)).Unix()
 	return nil
 }
 
