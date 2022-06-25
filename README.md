@@ -1,2 +1,2 @@
-# Auth_Service
+# Part of an authentication service
  
