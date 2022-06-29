@@ -97,8 +97,8 @@ func (m *dbmanager) Replace(user entities.User) error {
 	}
 
 	var collect = m.client.Database(Database_Name).Collection(Collection_Name)
-	var res, err = collect.ReplaceOne(context.TODO(), bson.D{{"guid", user.GUID}}, user)
-	if err != nil || res.MatchedCount > 12 {
+	var res = collect.FindOneAndReplace(context.TODO(), bson.D{{"guid", user.GUID}}, user)
+	if res.Err() != nil {
 		var er = m.Insert(user)
 		if er != nil {
 			return er
